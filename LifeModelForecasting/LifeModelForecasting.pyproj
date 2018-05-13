@@ -21,8 +21,20 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="config.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="config_input.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="FallDetection.py" />
+    <Compile Include="helpers.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="LifeModelForecasting.py" />
+    <Compile Include="metrics.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="ReadBatchZipLM_Omit_Accel.py" />
     <Compile Include="ReadBatchZipLM_Omit_Accel_Readdata.py" />
     <Compile Include="ReadBatchZipLM_Omit_Accel_Readdata_reg.py" />

@@ -1,223 +1,25 @@
 # coding: utf-8
-
 script_version='2.6'
 date='April 8th, 2018, UNB'
 #in 15th folder, we can find the code before refactoring
 
-
 import gzip
 import queue
-
 import pandas
 import numpy
+from config_input import *
 
 #def read_values():
 #    return sth
 
-method1_1="LifeModel_Binary"
-method1_2="Fixed_Binary"
-method1_3="Reg_Binary"
 
-method2_1="LifeModel_Multiple"
-method2_2="Fixed_Multiple"
-method2_3="Reg_Multiple"
-
-method3_1="LifeModel_Accel" #size(70, 129) Binary
-method3_2="Fixed_Accel"     #size(70, 129) Binary
-
-method4_1="reg_LifeModel32_Accel_AutoShift" #(, 130)
-method4_2="reg_Fixed32_Accel_AutoShift"     #(, 130)
-method4_3="LifeModelForecast_SingleRegression4_mortality"
-method4_4="RegularForecast_SingleRegression4_mortality"
-
-method5_1 = "LifeModel_Seq2Seq"
-method5_2 = "Regular_Seq2Seq"
-
-#method selection
-method = method5_1
-
-
-seqToSeq = True
-
-input_file_variable_name = "Input"
-#Possible values:
-#1  "_50Miss" #Fall Regression
-#2  "_10Miss" #Fall Regression
-#3  "" #Fall Regression no missing values
-#4  "Input" # Mortality
- 
-mortality = True
-#Possible values:
-#1  True  --> mortality dataset
-#2  False --> fall detection
-
-detection_mode = 1
-#Possible values:
-#1  1  --> one step (all people including who has not fallen are considered)
-#2  2  --> two step (only people who has fallen are considered)
-
-auto_shifted = False
-#Possible values:
-#1  True  --> autoshifted fallDetection dataset
-#2  False --> not autoshifted fallDetection dataset
-
-binaryP = "Binary classification problem"
-multiClassP = "MultiClass classification problem"
-regressionP = "Regression problem"
-
-problem_type = regressionP
-
-#if it is future prediction or binary  classification
-omit=True
-#Possible values:
-#1  True  --> prediction
-#2  False --> binary
-
-if(method==method3_1 or
-   method==method3_2 or
-   method==method4_1 or
-   method==method4_2):
-    mortality=False
-
-#for TE lost function
-tolerance = 4096
-#tolerance = 83000
-toleranceIndex = 23
-
-#value we assign to people who has not fallen
-not_fallen = -1
 
 #input and output declaration   
 X=[]
 Y=[]
-
-if(method==method3_1):
-    seqToSeq = False
-    input_file_variable_name = ""
-    mortality = False
-    detection_mode = 1
-    auto_shifted = False
-    problem_type = binaryP
-    omit=False
-elif(method==method3_2):
-    seqToSeq = False
-    input_file_variable_name = ""
-    mortality = False
-    detection_mode = 1
-    auto_shifted = False
-    problem_type = binaryP
-    omit=False
-elif(method==method4_1):
-    seqToSeq = False
-    input_file_variable_name = "_50Miss" # "" or "_10Miss" or "_50Miss"
-    mortality = False
-    detection_mode = 2 # 1 or 2 
-    auto_shifted = True
-    problem_type = regressionP
-    omit=True
-elif(method==method4_2):
-    seqToSeq = False
-    input_file_variable_name = "_50Miss" # "" or "_10Miss" or "_50Miss"
-    mortality = False
-    detection_mode = 2 # 1 or 2 
-    auto_shifted = True
-    problem_type = regressionP
-    omit=True
-elif(method==method4_3):
-    seqToSeq = False
-    input_file_variable_name = "Input" 
-    mortality = True
-    detection_mode = 2
-    auto_shifted = False
-    problem_type = regressionP
-    omit=True
-elif(method==method4_4):
-    seqToSeq = False
-    input_file_variable_name = "Input" 
-    mortality = True
-    detection_mode = 2
-    auto_shifted = False
-    problem_type = regressionP
-    omit=True
-elif(method==method5_1):
-    seqToSeq = True
-    input_file_variable_name = "Input" 
-    mortality = True
-    detection_mode = 1
-    auto_shifted = False
-    problem_type = regressionP
-    omit=True
-elif(method==method5_2):
-    seqToSeq = True
-    input_file_variable_name = "Input" 
-    mortality = True
-    detection_mode = 1
-    auto_shifted = False
-    problem_type = regressionP
-    omit=True
-
-if(not omit):
-    limit = max = 5200
-else:
-    limit = max = 34100
-
-if(method==method4_3 or method==method4_4):
-    limit = max = 5200
-#network parameters:
-#values for LifeModel of mortaliy dataset
-F=8371 #dimentionality of each timestep in each sequence for each sample
-K=32   #sequence length
-
-if(not mortality):
-    #values for Accel data (fall detection)
-    if(auto_shifted):
-        limit = max = 500
-    else:
-        limit = max = 70
-    F = 4
-    K = 32
-
 #???
 current_total=0
 y_current_total=0
-
-#C:\Users\manashty\Documents\LifeModelForecasting\LifeModelForecasting
-curDir=""
-
-if(method==method1_1):#LifeModel
-    filename=curDir+'MIMICIII_Diag_Proc_LM_{0}12-9-2017 7-10-28 PM.csv'
-elif (method==method1_2):##Fixed
-    filename=curDir+'MIMICIII_Diag_Proc_Fixed_{0}12-10-2017 8-41-34 PM.csv'
-elif (method==method1_3):##Reg
-    filename=curDir+'All Patients Reg Fixed\MIMICIII_Diag_Proc_Reg_{0}1-9-2018 3-51-30 PM.csv'
-
-##Omit Life Model multiple output
-#??? by "Multiple output"you mean sequene?
-if(method==method2_1):#LifeModel
-    filename=curDir+"MIMICIII_Diag_Proc_LM_Omit_{0}1-10-2018 2-20-50 PM.csv"
-elif (method==method2_2):##Fixed
-    filename=curDir+""
-elif (method==method2_3):##Reg
-    filename=curDir+'\All Patients Reg Fixed\MIMICIII_Diag_Proc_Reg_{0}1-9-2018 3-51-30 PM.csv'
-
-if(method==method3_1):#LifeModel
-    filename=curDir+"FallDataAvgLifeModel32_{}2018-03-10  15-17-39.csv"
-elif (method==method3_2):#Fixed
-    filename=curDir+"FallDataAvgFixed32_{}2018-03-10  15-17-39.csv"
-
-if(method==method4_1):
-    filename=curDir+'FallDataAvgLifeModel32AutoShift{0}_2018-03-10  15-17-39.csv'
-elif(method==method4_2):
-    filename=curDir+'FallDataAvgFixed32AutoShift{0}_2018-03-10  15-17-39.csv'
-elif(method==method4_3):
-    filename=curDir+'MIMICIII_Diag_Proc_LM_Forecast_SingleRegression4_{}3-13-2018 7-19-42 PM.csv'
-elif(method==method4_4):
-    filename=curDir+'MIMICIII_Diag_Proc_Reg_Forecast_SingleRegression4_{}3-28-2018 5-10-01 AM.csv'
-
-if(method==method5_1):
-    filename=curDir+'MIMICIII_Diag_Proc_LM_Forecast_Seq2SeqDiagnosisLM4_{}3-28-2018 4-01-38 AM.csv'
-elif(method==method5_2):
-    filename=curDir+'MIMICIII_Diag_Proc_Reg_Forecast_Seq2SeqDiagnosisReg4_{}3-28-2018 4-01-38 AM.csv'
 
         
 print("Opened input file and ready for reading from {0}".format(filename.format(input_file_variable_name)))
@@ -229,7 +31,7 @@ else:#Normal Mortality
     file_in=gzip.open(curDir+filename.format(input_file_variable_name)+'.gz')
 numberOfSamples = sum(1 for line in file_in)
 
-if(method==method4_3 or method==method4_4):
+if(method==Method.LifeModelForecast_SingleRegression4_mortality_43 or method==Method.RegularForecast_SingleRegression4_mortality_44):
     numberOfSamples = limit
 
 print("Read input samples: {0} samples from {1}".format(numberOfSamples,filename.format(input_file_variable_name)))
@@ -379,7 +181,7 @@ def batch_read_thread(q, size=2):
             lines=linesB.split(',')
             if(mortality):
                 #mehrdad
-                if(not seqToSeq and method==method4_3):
+                if(not seqToSeq and method==Method.LifeModelForecast_SingleRegression4_mortality_43):
                     lines = lines[:-1] #there is a non-integer character in last column with value '/r/n'
                     #if we get error of size and dimension in LSTM, it's because of the line above!
             # 267872 / 32 = 8371 
@@ -422,7 +224,7 @@ def batch_read_thread(q, size=2):
 
 
 def reset():
-    global current_total, X, file_in
+    global current_total, y_current_total, X, file_in
     file_in.close()
     if(not mortality):
         file_in=open(curDir+filename.format(input_file_variable_name))
@@ -443,9 +245,7 @@ def Y_batch_read_thread(q2, size=2):
         c = c + 1
         if(y_current_total<max):
             line=next(file_out)
-
-            linesB=line.decode('UTF-8')  
-                   
+            linesB=line.decode('UTF-8')                     
             lines=linesB.split(',')
             if(not seqToSeq):
                 lines = lines[:-1] #there is a non-integer character in last column with value '/r/n'

@@ -1,31 +1,14 @@
+#region Imports
+##################
+## IMPORTS
+##################
 #for floating point division
 from __future__ import division
+script_version = '3.0'
+date = 'May 12, 2018, Canada'
 
-script_version = '2.6'
-date = 'March 15th, 2018, Tehran'
-
+### KERAS ###
 import keras.backend as Kernel
-
-import seq2seq
-from seq2seq.models import SimpleSeq2Seq, Seq2Seq
-
-import numpy
-import sys
-import math
-
-
-
-from ReadBatchZipLM_Omit_Accel_Readdata_reg import seqToSeq,binaryP, multiClassP, regressionP, problem_type, K, F, numberOfSamples, Y, batch_read_thread, reset, method, filename, omit, mortality, input_file_variable_name, max, tolerance, detection_mode, Y_batch_read_thread, toleranceIndex
-
-#USE CPU ONLY
-import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"       #'-1' for cpu and [0,1,2,3,] for gpu
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'        #https://goo.gl/bZ6eiD
-from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve, f1_score, classification_report, recall_score, brier_score_loss, precision_score, regression
-    
-from sklearn.calibration import CalibratedClassifierCV, calibration_curve
-
 from keras import metrics
 from keras.datasets import imdb
 from keras.models import Sequential
@@ -33,6 +16,13 @@ from keras.layers import Dense, RepeatVector, LSTM, TimeDistributed
 from keras.layers.embeddings import Embedding
 from keras.callbacks import TensorBoard
 from keras.preprocessing import sequence
+### SEQ 2 SEQ LSTM
+import seq2seq
+from seq2seq.models import SimpleSeq2Seq, Seq2Seq
+### OTHER IMPORTS
+import numpy
+import sys
+import math
 import tensorflow
 import threading
 import queue
@@ -40,208 +30,15 @@ import pickle
 import jsonpickle
 import logging
 import matplotlib.pyplot as plt
-#from keras import callbacks
-class Epoch(object):
-    def __init__(self, e, **kwargs):
-        self.number = e
-        self.data = dict()
-        self.input_output = dict()
+from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve, f1_score, classification_report, recall_score, brier_score_loss, precision_score, regression
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 
-
-def accForReg(y_test_all, result):
-    # y_test_all: True values
-    y_test_all = numpy.array(y_test_all).reshape((len(y_test_all),1))
-    # result: Predicted values
-    countOfAllSamples = len(y_test_all)
-    correctCounter = 0
-    for i in range(countOfAllSamples):
-        if(round(y_test_all[i][0]) == round(result[i][0])):
-            correctCounter = correctCounter + 1
-    return ((correctCounter / countOfAllSamples) * 100)
-
-def TE(y_true, y_pred):
-    # y_true: True values
-    y_true = numpy.array(y_true).reshape((len(y_true),1))
-    # y_pred: Predicted values
-    countOfAllSamples = len(y_true)
-    sum = 0
-
-    for i in range(countOfAllSamples):
-        sum = sum + math.sqrt(math.pow((math.pow(2, y_true[i][0]) - math.pow(2, y_pred[i][0])) / tolerance, 2))
-        
-    return (sum)
-
-def TE_Loss(y_true, y_pred):
-    return TE(y_true, y_pred)
-
-def Mortality_Seq2seq_Metric(y_true, y_pred):
-    # y_true: True values - 3D - samples*seqLength*features n*K*F
-    
-    y_true = numpy.array(y_true)
-    # y_pred: Predicted values - 3D - samples*seqLength*features n*K*F
-    print('Shape Y_True={0}, Shape Y_pred={1}'.format(y_true.shape,y_pred.shape))
-
-    countOfAllSamples = y_true.shape[0]
-    countOfAllSamplesN = y_true.shape[0]
-    countOfAllSamplesK = y_true.shape[1]
-    countOfAllSamplesF = y_true.shape[2]
-    #print('Count N={0}, CountK={1},
-    #CountF={2}'.format(countOfAllSamplesN,countOfAllSamplesK,countOfAllSamplesF))
-
-    outersum = 0
-
-    tensorflow.cast(y_true, tensorflow.float64)
-    tensorflow.cast(y_pred, tensorflow.float64)
-
-    for n in range(countOfAllSamples):
-        for i in range(countOfAllSamplesF):
-            innerSum = 0
-            for j in range(countOfAllSamplesK):
-                #innerSum = innerSum +
-                #Kernel.pow((Kernel.abs(y_true[n][i][j]-y_pred[n][i][j]))*(Kernel.pow(2,j)/(Kernel.pow(2,tolerance))),2)
-                #print('Just before index n={0} of {1}, j(K)={2} of {3}, i
-                #(F)={4} of {5}'.format(n, countOfAllSamples,
-                #j,countOfAllSamplesK, i,countOfAllSamplesF))
-                diffPart = math.fabs(y_true[n][j][i] - y_pred[n][j][i])
-                #print('DiffPart={0}'.format(diffPart))
-                sum_part = math.pow(diffPart * (math.pow(2,j) / (math.pow(2,toleranceIndex))),2)
-                #sum_part=math.ldexp(diffPart,j-toleranceIndex)
-                #(math.pow(2,j)/(math.lp.pow(2,toleranceIndex))),2)
-                #print('Sum_part={0}'.format(sum_part))
-                innerSum = innerSum + sum_part
-                #print('Inner Sum={0}'.format(innerSum))
-                
-                #innerSum = innerSum +
-                #math.pow((math.fabs(y_true[n][i][j]-y_pred[n][i][j]))*(math.pow(2,j)/(math.pow(2,tolerance))),2)
-                #innerSum = innerSum +
-                #(Kernel.abs(y_true[i][j][p]-y_pred[i][j][p]))
-                # I didn't use the power of 2 in the formula.  Mehrdad
-            outersum = outersum + innerSum            
-            #print('OuterSum={0}'.format(outersum))
-    return (math.sqrt(outersum))#/Kernel.pow(2, tolerance))
-
-
-#Trying to make it work with Keras kernel functions only
-m = [2 ** i for i in range(32)]
-m2 = [m for i in range(8371)]
-m2tran = numpy.transpose(numpy.array(m2))
-def Mortality_Seq2seq_Metric_Loss_Kernel(y_true, y_pred):
-    # y_true: True values - 3D - samples*seqLength*features n*K*F
-    #y_true=Kernel.eval(y_true)
-    #print(y_true)
-    #y_true = numpy.array(y_true)
-    # y_pred: Predicted values - 3D - samples*seqLength*features n*K*F
-    #print('Shape Y_True={0}, Shape Y_pred={1},
-    #K={3}'.format(Kernel.int_shape(y_true),Kernel.int_shape(y_pred),0))#Kernel.int_shape(y_true)[1]))
-    
-    #M=Kernel.var
-    #K=Kernel.variable(Kernel.int_shape(y_true)[1])
-    #m = [2 ** i for i in range(32)]
-    #m2 = [m for i in range(8371)]
-    #m2tran = numpy.transpose(numpy.array(m2))
-    m3 = Kernel.constant(m2tran)
-    
-    #K = Kernel.variable(32)
-    #M = Kernel.ones((1,K)) * 2
-    #M2=Kernel.
-    step1 = y_true - y_pred
-    step2 = Kernel.abs(step1)
-    step3 = step2 * m3#Kernel.variable(m)
-    #step3 = step2
-    step4 = Kernel.pow(step3,2)
-    step5 = Kernel.sum(step4)
-    step6 = Kernel.sqrt(step5)
-    
-    return step6
-        
-    ####countOfAllSamples = Kernel.int_shape(y_true)[0]
-    ####countOfAllSamplesN = Kernel.int_shape(y_true)[0]
-    ####countOfAllSamplesK = Kernel.int_shape(y_true)[1]
-    ####countOfAllSamplesF = Kernel.int_shape(y_true)[2]
-    ####print('Count N={0}, CountK={1},
-    ####CountF={2}'.format(countOfAllSamplesN,countOfAllSamplesK,countOfAllSamplesF))
-
-    
-    ####outersum = 0.
-
-    #####tensorflow.cast(y_true, tensorflow.float64)
-    #####tensorflow.cast(y_pred, tensorflow.float64)
-    ####if(countOfAllSamples is not None):
-    ####    for n in range(countOfAllSamples):
-    ####        for i in range(countOfAllSamplesF):
-    ####            innerSum = 0.
-    ####            for j in range(countOfAllSamplesK):
-    ####                #innerSum = innerSum +
-    ####                Kernel.pow((Kernel.abs(y_true[n][i][j]-y_pred[n][i][j]))*(Kernel.pow(2,j)/(Kernel.pow(2,tolerance))),2)
-    ####                print('Just before index n={0} of {1}, j(K)={2} of {3},
-    ####                i (F)={4} of {5}'.format(n, countOfAllSamples,
-    ####                j,countOfAllSamplesK, i,countOfAllSamplesF))
-    ####                diffPart=Kernel.abs(y_true[n][j][i]-y_pred[n][j][i])
-    ####                #print('DiffPart={0}'.format(diffPart))
-    ####                sum_part=Kernel.pow(Kernel.dot(diffPart,Kernel.pow(2,Kernel.pow(Kernel.variable(j-toleranceIndex),2))),2)
-    ####                #sum_part=math.ldexp(diffPart,j-toleranceIndex)
-    ####                (math.pow(2,j)/(math.lp.pow(2,toleranceIndex))),2)
-    ####                #print('Sum_part={0}'.format(sum_part))
-    ####                innerSum=innerSum+sum_part
-    ####                #print('Inner Sum={0}'.format(innerSum))
-                    
-    ####                #innerSum = innerSum +
-    ####                math.pow((math.fabs(y_true[n][i][j]-y_pred[n][i][j]))*(math.pow(2,j)/(math.pow(2,tolerance))),2)
-    ####                #innerSum = innerSum +
-    ####                (Kernel.abs(y_true[i][j][p]-y_pred[i][j][p]))
-    ####                # I didn't use the power of 2 in the formula.  Mehrdad
-    ####            outersum = outersum + innerSum
-    ####            #print('OuterSum={0}'.format(outersum))
-    ####return (Kernel.sqrt(Kernel.variable(outersum)))#/Kernel.pow(2,
-    ####tolerance))
-
-def Mortality_Seq2seq_Metric_Loss(y_true, y_pred):
-    # y_true: True values - 3D - samples*seqLength*features n*K*F
-    #y_true=Kernel.eval(y_true)
-    #print(y_true)
-    #y_true = numpy.array(y_true)
-    # y_pred: Predicted values - 3D - samples*seqLength*features n*K*F
-    print('Shape Y_True={0}, Shape Y_pred={1}'.format(Kernel.int_shape(y_true),Kernel.int_shape(y_pred)))
-
-    
-    countOfAllSamples = Kernel.int_shape(y_true)[0]
-    countOfAllSamplesN = Kernel.int_shape(y_true)[0]
-    countOfAllSamplesK = Kernel.int_shape(y_true)[1]
-    countOfAllSamplesF = Kernel.int_shape(y_true)[2]
-    print('Count N={0}, CountK={1}, CountF={2}'.format(countOfAllSamplesN,countOfAllSamplesK,countOfAllSamplesF))
-
-    
-    outersum = 0.
-
-    #tensorflow.cast(y_true, tensorflow.float64)
-    #tensorflow.cast(y_pred, tensorflow.float64)
-    if(countOfAllSamples is not None):
-        for n in range(countOfAllSamples):
-            for i in range(countOfAllSamplesF):
-                innerSum = 0.
-                for j in range(countOfAllSamplesK):
-                    #innerSum = innerSum +
-                    #Kernel.pow((Kernel.abs(y_true[n][i][j]-y_pred[n][i][j]))*(Kernel.pow(2,j)/(Kernel.pow(2,tolerance))),2)
-                    print('Just before index n={0} of {1}, j(K)={2} of {3}, i (F)={4} of {5}'.format(n, countOfAllSamples, j,countOfAllSamplesK, i,countOfAllSamplesF))
-                    diffPart = Kernel.abs(y_true[n][j][i] - y_pred[n][j][i])
-                    #print('DiffPart={0}'.format(diffPart))
-                    sum_part = Kernel.pow(Kernel.dot(diffPart,Kernel.pow(2,Kernel.pow(Kernel.variable(j - toleranceIndex),2))),2)                    
-                    #sum_part=math.ldexp(diffPart,j-toleranceIndex)
-                    #(math.pow(2,j)/(math.lp.pow(2,toleranceIndex))),2)
-                    #print('Sum_part={0}'.format(sum_part))
-                    innerSum = innerSum + sum_part
-                    #print('Inner Sum={0}'.format(innerSum))
-                    
-                    #innerSum = innerSum +
-                    #math.pow((math.fabs(y_true[n][i][j]-y_pred[n][i][j]))*(math.pow(2,j)/(math.pow(2,tolerance))),2)
-                    #innerSum = innerSum +
-                    #(Kernel.abs(y_true[i][j][p]-y_pred[i][j][p]))
-                    # I didn't use the power of 2 in the formula.  Mehrdad
-                outersum = outersum + innerSum            
-                #print('OuterSum={0}'.format(outersum))
-    return (Kernel.sqrt(Kernel.variable(outersum)))#/Kernel.pow(2, tolerance))
-
-
+#Local files
+from ReadBatchZipLM_Omit_Accel_Readdata_reg import *# K, F, numberOfSamples, Y, batch_read_thread, reset, max, Y_batch_read_thread
+from metrics import *
+from helpers import *
+from config import *
+#endregion
 
 # fix random seed for reproducibility
 numpy.random.seed(7)
@@ -251,8 +48,10 @@ n_features = F
 
 model = Sequential()
 
-
 if(seqToSeq):
+    ###################
+    ### Model Definition
+    ###################
     if(False):
         model = Seq2Seq(input_shape = (sequence_length, n_features), hidden_dim = 25,
                     output_length = sequence_length, output_dim = n_features,
@@ -262,67 +61,33 @@ if(seqToSeq):
                     optimizer = 'rmsprop'#metrics=[TE]
                       ,loss=Mortality_Seq2seq_Metric_Loss
                       , metrics=['mean_squared_error'])
-
-    
-
-    #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs =
-    #(40, 20, 0.1, 1, 1)
-    totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (100, 20, 0.1, 2, 1)
-    #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-    #=(1000, 100, 0.1, 10, 1)
-    #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-    #=(1000, 100, 0.1, 10, 2)
-    #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-    #=(1000, 100, 0.2, 50, 2)
-    #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-    #=(1000, 10, 0.2, 10, 2)
-    #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-    #=(5000, 100, 0.2, 50, 2)
-
-    no_mini_batches = int(totalSamples / minibatchSize)    
-
+    if(True):
+        #mehrdad
+        sequence_length = K
+        n_features = F
+        model = Sequential()
+        model.add(LSTM(K, input_shape=(sequence_length, n_features)))
+        model.add(RepeatVector(sequence_length))
+        model.add(LSTM(K, return_sequences=True))
+        model.add(TimeDistributed(Dense(n_features
+                                       #,activation='sigmoid'
+                                        )))
+        # relu --> worse result
+        model.compile(loss=MTE, optimizer='adam', metrics=['mean_squared_error',MTE])
+        #model.compile(loss='mse', optimizer='adam',
+        #metrics=['mean_squared_error'])      
+ 
     X_test_all = []
     y_test_all = []
-
-    import datetime
-    dateformatFile = '%Y-%m-%d  %H-%M-%S'
-
-    directory = "Results " + str(datetime.datetime.now().strftime(dateformatFile)) + ' Samples-{0}_MB-{1}_TestPerc{2}_{3}'.format(totalSamples,minibatchSize, int(testPercentage * 100),method)
-
-    print(directory)
-
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-
-    #An empty file with the name of the input file!
-    #open(directory+'/'+filename.format("Input"),'wb').close()
-    logFile = open(directory + '/' + 'log.txt','wt')
-
-    logging.basicConfig(filename=directory + '/' + 'log.txt',format='%(message)s', level=logging.DEBUG)
-
-    #Adding log to console as well
-    consoleHandler = logging.StreamHandler()
-    consoleHandler.setFormatter(logging.Formatter('*\t%(message)s'))
-    logging.getLogger().addHandler(consoleHandler)
-    dateformat = "%Y/%m/%d  %H:%M:%S"
+   
     logging.info("Script version: " + script_version)
-    logging.info("Log file created at " + datetime.datetime.now().strftime("%Y/%m/%d  %H:%M:%S"))
-    logging.info("Directory: {0}".format(directory))
-    logging.info("Filename Template: {0}".format(filename.format(input_file_variable_name)))
-    logging.info("Filename Input: {0}".format(filename.format(input_file_variable_name)))
-    logging.info("Filename Output: {0}".format(filename.format("Output")))
-
-    tensorboard = TensorBoard(log_dir=directory, write_graph=True)
-
-    startTime = datetime.datetime.now()
-    logging.info('Start time: ' + str(startTime))    
-    logging.info((model.summary()))
-
+    #logging.info((model.summary()))
+    #endregion 
+    
     accuracy = []
     mean_square_error = []
-
     metricsReports = []
+
     q = queue.Queue(1)
     q2 = queue.Queue(1)
     epochsData = []
@@ -330,21 +95,10 @@ if(seqToSeq):
     #tensorflow.get_default_graph().finalize()
     #to solve this problem: GraphDef cannot be larger than 2GB
 
-    if(True):
-        #mehrdad
-        sequence_length = K
-        n_features = F
-        model = Sequential()
-        model.add(LSTM(100, input_shape=(sequence_length, n_features)))
-        model.add(RepeatVector(sequence_length))
-        model.add(LSTM(50, return_sequences=True))
-        model.add(TimeDistributed(Dense(n_features
-                                       #,activation='sigmoid'
-                                        )))
-        # relu --> worse result
-        model.compile(loss=Mortality_Seq2seq_Metric_Loss_Kernel, optimizer='adam', metrics=['mean_squared_error',Mortality_Seq2seq_Metric_Loss_Kernel])
-        #model.compile(loss='mse', optimizer='adam',
-        #metrics=['mean_squared_error'])
+    
+        
+
+    #tensorflow.get_default_graph().finalize()
 
     for e in range(epochs):
 
@@ -352,7 +106,8 @@ if(seqToSeq):
         logging.info("\t##########################################################################")
         logging.info("\t############# Epoch {0} started @ {1} ####################".format(e + 1,str(epoch_start_time.strftime(dateformat))))
         logging.info("\t##########################################################################")
-    
+        logging.info((model.summary()))
+
         epoch = Epoch(e)
     
         X_test_all = []
@@ -388,7 +143,7 @@ if(seqToSeq):
             #Read samples and prepare data
             minibatch_start_time = datetime.datetime.now()
             logging.info("*********Epoch {2} of {3}, Minibatch {0} of {1} @ {4}********".format(minibatch + 1,no_mini_batches,e + 1,epochs,str(minibatch_start_time.strftime(dateformat))))
-            logging.info("Samples:{0}, {3}, MBatch: {1}, Test {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage,method, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
+            logging.info("Samples:{0}, {3}, MBatch: {1}, Test {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage,method.name, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
       
             #readingThread.start()
             readingThread.join()
@@ -464,7 +219,7 @@ if(seqToSeq):
             logging.info("Batch History: ")
             logging.info(str(history.history.items()))
         
-            scores = model.evaluate(numpy.array(X_test), numpy.array(X_test))#, verbose=0)
+            #scores = model.evaluate(numpy.array(X_test), numpy.array(X_test))#, verbose=0)
             epoch.input_output['all_batches_training_history_loss'].append((history.history['loss']))
 
             epoch.input_output['all_batches_training_history_loss'].append((history.history['mean_squared_error']))
@@ -477,7 +232,9 @@ if(seqToSeq):
         train_result = model.predict_on_batch(numpy.array(X_train))
 
         scores = model.evaluate(numpy.array(X_test_all), numpy.array(X_test_all), verbose=0)
-    
+        logging.info("***Test Score Seq2Seq***")
+        logging.info(str(scores))
+        logging.info("***End Test Score***")
 
         epochsData.append(epoch)
    
@@ -497,11 +254,8 @@ if(seqToSeq):
 
         pickleFile = open(directory + '/' + 'data{0}.bin'.format(e + 1),'wb')
         jsonFile = open(directory + '/' + 'data{0}.txt'.format(e + 1),'wt')
-        epochFile = open(directory + '/' + 'epoch{0}.txt'.format(e + 1),'wt')
-    
+        epochFile = open(directory + '/' + 'epoch{0}.txt'.format(e + 1),'wt')    
         model.save(directory + '/' + 'model_keras{0}.h5'.format(e + 1))
-
-
         import json
         pickle.dump(epoch,pickleFile)
         pickleFile.flush()
@@ -518,8 +272,8 @@ if(seqToSeq):
         jsonFile.close()
 
 
-        print("Test Mortality_Seq2seq_Metric for seq2seq: ")
-        print(Mortality_Seq2seq_Metric(y_test_all,result))
+        #print("Test Mortality_Seq2seq_Metric for seq2seq: ")
+        #print(MTE(y_test_all,result))
 else:
     # Model Definition
     if(seqToSeq == False):
@@ -566,40 +320,7 @@ else:
 
     X_test_all = []
     y_test_all = []
-
-    import datetime
-    dateformatFile = '%Y-%m-%d  %H-%M-%S'
-
-    directory = "Results " + str(datetime.datetime.now().strftime(dateformatFile)) + ' Samples-{0}_MB-{1}_TestPerc{2}_{3}'.format(totalSamples,minibatchSize, int(testPercentage * 100),method)
-
-    print(directory)
-
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-
-    #An empty file with the name of the input file!
-    #open(directory+'/'+filename.format("Input"),'wb').close()
-    logFile = open(directory + '/' + 'log.txt','wt')
-
-    logging.basicConfig(filename=directory + '/' + 'log.txt',format='%(message)s', level=logging.DEBUG)
-
-    #Adding log to console as well
-    consoleHandler = logging.StreamHandler()
-    consoleHandler.setFormatter(logging.Formatter('*\t%(message)s'))
-    logging.getLogger().addHandler(consoleHandler)
-    dateformat = "%Y/%m/%d  %H:%M:%S"
-    logging.info("Script version: " + script_version)
-    logging.info("Log file created at " + datetime.datetime.now().strftime("%Y/%m/%d  %H:%M:%S"))
-    logging.info("Directory: {0}".format(directory))
-    logging.info("Filename Template: {0}".format(filename.format(input_file_variable_name)))
-    logging.info("Filename Input: {0}".format(filename.format(input_file_variable_name)))
-    logging.info("Filename Output: {0}".format(filename.format("Output")))
-
-    tensorboard = TensorBoard(log_dir=directory, write_graph=True)
-
-    startTime = datetime.datetime.now()
-    logging.info('Start time: ' + str(startTime))    
+    
     logging.info((model.summary()))
 
     accuracy = []
@@ -642,7 +363,7 @@ else:
             #Read samples and prepare data
             minibatch_start_time = datetime.datetime.now()
             logging.info("*********Epoch {2} of {3}, Minibatch {0} of {1} @ {4}********".format(minibatch + 1,no_mini_batches,e + 1,epochs,str(minibatch_start_time.strftime(dateformat))))
-            logging.info("Samples:{0}, {3}, MBatch: {1}, Test {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage,method, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
+            logging.info("Samples:{0}, {3}, MBatch: {1}, Test {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage,method.name, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
       
             #readingThread.start()
             readingThread.join()
@@ -829,7 +550,7 @@ else:
             for ep in range(e + 1):
                 logging.info("Epoch {0} Accuracy:{1}, Loss:{2}".format(ep + 1,accuracy[ep][0],accuracy[ep][1]))
         
-        logging.info("Parameters: Samples:{0}, Method={3}, Minibatch Size: {1}, Test: Ratio: {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage, method, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
+        logging.info("Parameters: Samples:{0}, Method={3}, Minibatch Size: {1}, Test: Ratio: {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage, method.name, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
         if (problem_type == regressionP):
             logging.info("MSE: %.2f" % (scores[1]))
         else:
