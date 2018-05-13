@@ -7,6 +7,9 @@ from __future__ import division
 script_version = '3.0'
 date = 'May 12, 2018, Canada'
 
+### CONFIG ### SHOULD BE BEFORE EVERYTHING FOR OS CONFIG###
+from config import *
+
 ### KERAS ###
 import keras.backend as Kernel
 from keras import metrics
@@ -26,8 +29,6 @@ import math
 import tensorflow
 import threading
 import queue
-import pickle
-import jsonpickle
 import logging
 import matplotlib.pyplot as plt
 from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve, f1_score, classification_report, recall_score, brier_score_loss, precision_score, regression
@@ -37,7 +38,7 @@ from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from ReadBatchZipLM_Omit_Accel_Readdata_reg import *# K, F, numberOfSamples, Y, batch_read_thread, reset, max, Y_batch_read_thread
 from metrics import *
 from helpers import *
-from config import *
+
 #endregion
 
 # fix random seed for reproducibility
@@ -222,15 +223,22 @@ if(seqToSeq):
             logging.info("Batch History: ")
             logging.info(str(history.history.items()))
         
-            #scores = model.evaluate(numpy.array(X_test), numpy.array(X_test))#, verbose=0)
+            scores = model.evaluate(numpy.array(X_test), numpy.array(X_test))#, verbose=0)
+
             epoch.input_output['all_batches_training_history_loss'].append((history.history['loss']))
 
             epoch.input_output['all_batches_training_history_loss'].append((history.history['mean_squared_error']))
 
             logging.info("**END****Epoch {2} of {3}, Minibatch {0} of {1} in {4} ********".format(minibatch + 1,no_mini_batches,e + 1,epochs,str((datetime.datetime.now() - minibatch_start_time))))
             logging.info('')
+            ##########################
+            #### END OF MINIBATCH LOOP
+            ##########################
         
         # Final evaluation of the model
+        #####################################
+        ###### EPOCH TRAINING FINISHED
+        #####################################
         result = model.predict_on_batch(numpy.array(X_test_all))
         train_result = model.predict_on_batch(numpy.array(X_train))
 
@@ -238,6 +246,8 @@ if(seqToSeq):
         logging.info("***Test Score Seq2Seq***")
         logging.info(str(scores))
         logging.info("***End Test Score***")
+
+        
 
         epochsData.append(epoch)
    
@@ -255,24 +265,10 @@ if(seqToSeq):
         logging.info("*****************************************")
         logging.info("")
 
-        pickleFile = open(directory + '/' + 'data{0}.bin'.format(e + 1),'wb')
-        jsonFile = open(directory + '/' + 'data{0}.txt'.format(e + 1),'wt')
-        epochFile = open(directory + '/' + 'epoch{0}.txt'.format(e + 1),'wt')    
-        model.save(directory + '/' + 'model_keras{0}.h5'.format(e + 1))
-        import json
-        pickle.dump(epoch,pickleFile)
-        pickleFile.flush()
-        pickleFile.close()
-
-        epochFile.write(str(epoch.number))
-        epochFile.write(str(epoch.data))
-        epochFile.write(str(epoch.input_output))
-        epochFile.close()
-
-        jsonFile.write(jsonpickle.encode(epoch))        
-        #json.dump([epoch.number,epoch.data, epoch.input_output],jsonFile)
-        jsonFile.flush()
-        jsonFile.close()
+        epoch.SaveToFile(directory, model)        
+        #####################################
+        ###### EPOCH LOOP END
+        #####################################
 
 
         #print("Test Mortality_Seq2seq_Metric for seq2seq: ")
@@ -719,29 +715,7 @@ else:
                 plt.close()
                 '''
         
-        pickleFile = open(directory + '/' + 'data{0}.bin'.format(e + 1),'wb')
-        jsonFile = open(directory + '/' + 'data{0}.txt'.format(e + 1),'wt')
-        epochFile = open(directory + '/' + 'epoch{0}.txt'.format(e + 1),'wt')
-    
-        model.save(directory + '/' + 'model_keras{0}.h5'.format(e + 1))
-
-
-        import json
-        pickle.dump(epoch,pickleFile)
-        pickleFile.flush()
-        pickleFile.close()
-
-        epochFile.write(str(epoch.number))
-        epochFile.write(str(epoch.data))
-        epochFile.write(str(epoch.input_output))
-        epochFile.close()
-
-        jsonFile.write(jsonpickle.encode(epoch))        
-        #json.dump([epoch.number,epoch.data, epoch.input_output],jsonFile)
-        jsonFile.flush()
-        jsonFile.close()
-
-
+        epoch.SaveToFile(directory,model)        
 
 
     #if(reg_fall):
