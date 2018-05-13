@@ -224,8 +224,9 @@ def batch_read_thread(q, size=2):
 
 
 def reset():
-    global current_total, y_current_total, X, file_in
+    global current_total, y_current_total, X, file_in, Y, file_out
     file_in.close()
+    file_out.close()
     if(not mortality):
         file_in=open(curDir+filename.format(input_file_variable_name))
     else:
@@ -233,6 +234,9 @@ def reset():
     current_total=0
     y_current_total=0
     X=[]
+    if(seqToSeq):
+        file_out=gzip.open(curDir+filename.format("Output")+'.gz')
+        Y=[]
     counter=0
 
 def Y_batch_read_thread(q2, size=2):  

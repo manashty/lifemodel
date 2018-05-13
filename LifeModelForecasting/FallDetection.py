@@ -73,7 +73,10 @@ if(seqToSeq):
                                        #,activation='sigmoid'
                                         )))
         # relu --> worse result
-        model.compile(loss=MTE, optimizer='adam', metrics=['mean_squared_error',MTE])
+        if(lossFunction==Seq2SeqLossFunction.MeanSquaredErrorMSE):
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mean_squared_error',MTE])
+        elif(lossFunction==Seq2SeqLossFunction.MeanToleranceErrorMTE):
+            model.compile(loss=MTE, optimizer='adam', metrics=['mean_squared_error',MTE])
         #model.compile(loss='mse', optimizer='adam',
         #metrics=['mean_squared_error'])      
  

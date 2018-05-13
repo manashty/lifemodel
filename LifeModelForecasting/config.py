@@ -2,6 +2,10 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"       #'-1' for cpu and [0,1,2,3,] for gpu
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0"       # GPU 1
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1"       # GPU 2
+#os.environ["CUDA_VISIBLE_DEVICES"] = "2"       # GPU 3
+#os.environ["CUDA_VISIBLE_DEVICES"] = "3"       # GPU 4
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'        #https://goo.gl/bZ6eiD
 
 
@@ -17,9 +21,13 @@ totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (
 #1000, 10, 0.2, 10, 2)
 #5000, 100, 0.2, 50, 2)
 
-
 no_mini_batches = int(totalSamples / minibatchSize)   
-   
+
+class Seq2SeqLossFunction(Enum):
+    MeanSquaredErrorMSE=0
+    MeanToleranceErrorMTE=1
+
+lossFunction=Seq2SeqLossFunction.MeanToleranceErrorMTE
 
 #Create the results directory
 import datetime
