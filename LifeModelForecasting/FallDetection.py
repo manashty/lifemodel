@@ -37,10 +37,10 @@ from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 #Local files
 from ReadBatchZipLM_Omit_Accel_Readdata_reg import *# K, F, numberOfSamples, Y, batch_read_thread, reset, max, Y_batch_read_thread
 from metrics import *
-from helpers import *
+from epoch import *
+from visualization import *
 
 #endregion
-
 sequence_length = K
 n_features = F
 
@@ -72,19 +72,21 @@ if(seqToSeq):
                                        #,activation='sigmoid'
                                         )))
         # relu --> worse result
-        if(lossFunction==Seq2SeqLossFunction.MeanSquaredErrorMSE):
-            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mean_squared_error',MTE])
-        elif(lossFunction==Seq2SeqLossFunction.MeanToleranceErrorMTE):
-            model.compile(loss=MTE, optimizer='adam', metrics=['mean_squared_error',MTE])
+        metrics_seq2seq = ['mean_squared_error',MTE]#Metrics should be MSE and then MTE for accounting purposes
+
+        if(lossFunction == Seq2SeqLossFunction.MeanSquaredErrorMSE):
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=metrics_seq2seq)
+        elif(lossFunction == Seq2SeqLossFunction.MeanToleranceErrorMTE):
+            model.compile(loss=MTE, optimizer='adam', metrics=metrics_seq2seq)
         #model.compile(loss='mse', optimizer='adam',
-        #metrics=['mean_squared_error'])      
+        #metrics=['mean_squared_error'])
  
     X_test_all = []
     y_test_all = []
    
     logging.info("Script version: " + script_version)
     #logging.info((model.summary()))
-    #endregion 
+    #endregion
     
     accuracy = []
     mean_square_error = []
@@ -117,9 +119,13 @@ if(seqToSeq):
             readingThread2.join()
     
         batch_data = []
-        epoch.input_output['all_batches_training_history_loss'] = []
-        epoch.input_output['all_batches_training_history_accuracy'] = []
-        epoch.input_output['all_batches_training_history_mse'] = []
+
+        #We store the train and test metrics/data for each minibatch here.
+        #Usually use the last one as the epoch error.  Which may not be right
+        epoch.input_output[metricsDic[Metric.loss.name].batch_train_data_index] = []
+        epoch.input_output[metricsDic[Metric.accuracy.name].batch_train_data_index] = [] 
+        epoch.input_output[metricsDic[Metric.mse.name].batch_train_data_index] = [] 
+        epoch.input_output[metricsDic[Metric.mte.name].batch_train_data_index] = []         
                     
         for minibatch in range(no_mini_batches):
             #Read samples and prepare data
@@ -127,19 +133,14 @@ if(seqToSeq):
             logging.info("*********Epoch {2} of {3}, Minibatch {0} of {1} @ {4}********".format(minibatch + 1,no_mini_batches,e + 1,epochs,str(minibatch_start_time.strftime(dateformat))))
             logging.info("Samples:{0}, {3}, MBatch: {1}, Test {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage,method.name, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
       
-            #Wait for previous threads to join
+            #Wait for I/O threads to finish
             readingThread.join()
             readingThread2.join()
+            #Get the result of the I/O
+            X = q.get()
+            Y = q2.get()            
 
-            
-            X2 = q.get()
-            Y2 = q2.get()
-            X = X2
-            Y = Y2
-
-            #print(numpy.array(X).shape)
-            #print(numpy.array(Y).shape)
-
+            #Calculate train and test percentage
             if(mortality == False and detection_mode == 2):
                 te = list(numpy.random.randint(0, numberOfSamples,size=int((numberOfSamples * testPercentage))))#Rand 10 percent for testing
                 tr = set(list(range(0, numberOfSamples))) - set(te)#The remaining 90 percent for training
@@ -167,31 +168,38 @@ if(seqToSeq):
             if(minibatch == (no_mini_batches - 1)):#If last minibatch, reset to read the first batch for next epoch
                 reset()
 
-            ####READ X
+            ####Start reading X for the next batch (yes, already!)
             readingThread = threading.Thread(target=batch_read_thread,args=(q,minibatchSize))
             readingThread.start()
-            ###READ Y
+            ###Start reading Y for the next batch (yup!  before the current
+            ###batch begins!)
             readingThread2 = threading.Thread(target=Y_batch_read_thread,args=(q2,minibatchSize))
-            readingThread2.start()
-                       
+            readingThread2.start()                      
+
+            
+            tf_callbacks = []
+            if(minibatch == 0 or minibatch == no_mini_batches - 1):#Just write tensorboard for the first and last minibatch
+                tf_callbacks = tensorboard_callbacks
 
             history = model.fit(X_train, 
                                 y_train,                                
                                 epochs=minibatch_epochs, batch_size=1
-                                #,callbacks=[tensorboard,
-                                #           tbCallBack
-                                #           ]
-                                )
+                                ,callbacks=tf_callbacks)
 
             logging.info("Batch History: ")
             logging.info(str(history.history.items()))
         
-            scores = model.evaluate(numpy.array(X_test), numpy.array(X_test))#, verbose=0)
+            scores = model.evaluate(numpy.array(X_test), numpy.array(y_test))#, verbose=0)
+            logging.info("***Batch Score Scores: Test MSE={0}, Test MTE={1}***".format(scores[0], scores[1]))
 
-            epoch.input_output['all_batches_training_history_loss'].append((history.history['loss']))
+            
 
-            epoch.input_output['all_batches_training_history_loss'].append((history.history['mean_squared_error']))
-
+            epoch.input_output[metricsDic[Metric.loss.name].batch_train_data_index].append((history.history['loss']))
+            #epoch.input_output[metricsDic[Metric.accuracy.name].batch_train_data_index]=[]
+            epoch.input_output[metricsDic[Metric.mse.name].batch_train_data_index].append((history.history['mean_squared_error']))
+            epoch.input_output[metricsDic[Metric.mte.name].batch_train_data_index].append((history.history['MTE']))        
+            
+            
             logging.info("**END****Epoch {2} of {3}, Minibatch {0} of {1} in {4} ********".format(minibatch + 1,no_mini_batches,e + 1,epochs,str((datetime.datetime.now() - minibatch_start_time))))
             logging.info('')
             ##########################
@@ -202,20 +210,38 @@ if(seqToSeq):
         #####################################
         ###### 1 EPOCH TRAINING FINISHED
         #####################################
-        result = model.predict_on_batch(numpy.array(X_test_all))
-        train_result = model.predict_on_batch(numpy.array(X_train))
-
-        scores = model.evaluate(numpy.array(X_test_all), numpy.array(X_test_all), verbose=0)
-        epoch.input_output["Test Score Seq2Seq"]=str(scores)
-        logging.info("***Test Score Seq2Seq***")
-        logging.info(str(scores))
-        logging.info("***End Test Score***")
-
         
+        
+        #Too big to use for now!  Find a way to store the actual results later!
+        #result = model.predict_on_batch(numpy.array(X_test_all))#
+
+        #Remove these
+        #train_result = model.predict_on_batch(numpy.array(X_train))#Final
+        #metrics on the last train.  Better approach is to get the average of
+        #the last epoch
+        #scores_train_last_batch = model.evaluate(numpy.array(X_train),
+        #numpy.array(y_train), verbose=0)
+        #epoch.data['mse_train'] = scores_train_last_batch[0]
+        #epoch.data['mte_train'] = scores_train_last_batch[1]
+
+        scores_test_all = model.evaluate(numpy.array(X_test_all), numpy.array(y_test_all), verbose=0)        
+        epoch.data[metricsDic[Metric.loss.name].epoch_test_data_index] = scores_test_all[0]
+        epoch.data[metricsDic[Metric.mse.name].epoch_test_data_index] = scores_test_all[1]
+        epoch.data[metricsDic[Metric.mte.name].epoch_test_data_index] = scores_test_all[2]                
+              
+        epoch.input_output["epoch_test_seq2seq"] = str(scores)
+        #logging.info("***Test Score Seq2Seq***")
+        logging.info("***Scores: Test Loss={0}, MSE={0}, Test MTE={1}***".format(scores_test_all[0],scores_test_all[1],scores_test_all[2]))
+        logging.info(str(scores_test_all))
+        logging.info("***End Test Score***")        
             
         epoch.Finished()        
         epoch.SaveToFile(directory, model)           
-        all_epochs_Data.append(epoch)        
+        all_epochs_Data.append(epoch)       
+        
+        Visualization.PlotMetric(all_epochs_Data,Metric.loss)
+        Visualization.PlotMetric(all_epochs_Data,Metric.mte)
+        Visualization.PlotMetric(all_epochs_Data,Metric.mse)
         #####################################
         ###### EPOCH LOOP END
         #####################################
@@ -250,22 +276,9 @@ else:
                 model.add(Dense(output_layer, name="Output_Dense_reg"))
                 model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mean_squared_error'])
 
-    #print((model.summary()))
-    if(mortality):    
-        #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-        #= (40, 20, 0.1, 2, 1)
-        #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-        #=(1000, 100, 0.1, 2, 1)
-        #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-        #=(1000, 100, 0.1, 10, 2)
-        #totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs
-        #=
-        #(numberOfSamples, 100, 0.1, 2, 2)
-        totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (numberOfSamples, 100, 0.2, 50, 1)   
-    else:
-        totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (numberOfSamples, numberOfSamples, 0.2, 50, 2)
+    
 
-    no_mini_batches = int(totalSamples / minibatchSize)    
+    
 
     X_test_all = []
     y_test_all = []
@@ -274,8 +287,8 @@ else:
 
     accuracy = []
     mean_square_error = []
-
     metricsReports = []
+
     q = queue.Queue(1)
     #it was 1, for seq2seq has changed to 2
     all_epochs_Data = []
@@ -299,9 +312,13 @@ else:
 
     
         batch_data = []
+        #These variables will be used to plot the data for all epochs
         epoch.input_output['all_batches_training_history_loss'] = []
         epoch.input_output['all_batches_training_history_accuracy'] = []
         epoch.input_output['all_batches_training_history_mse'] = []
+        epoch.input_output['all_batches_training_history_mte'] = []
+        epoch.input_output['all_batches_training_history_mte_test'] = []
+        epoch.input_output['all_batches_training_history_mse_test'] = []
     
         for minibatch in range(no_mini_batches):
             #Read samples and prepare data
@@ -511,8 +528,10 @@ else:
             mse_train = [epoch_iter.input_output['all_batches_training_history_mse'][-1][-1] for epoch_iter in all_epochs_Data]
             mse = [epoch_iter.data['mse'] for epoch_iter in all_epochs_Data]
 
-        loss_train = [epoch_iter.input_output['all_batches_training_history_loss'][-1][-1] for epoch_iter in all_epochs_Data]
-        loss = [epoch_iter.data['loss'] for epoch_iter in all_epochs_Data]
+        ##loss_train =
+        ##[epoch_iter.input_output['all_batches_training_history_loss'][-1][-1]
+        ##for epoch_iter in all_epochs_Data]
+        ##loss = [epoch_iter.data['loss'] for epoch_iter in all_epochs_Data]
 
 
         #ta einja mse va acc check shodan
@@ -531,17 +550,18 @@ else:
             #plt.show()
             plt.close()
     
-            # summarize history for loss
-            plt.plot(loss_train)
-            plt.plot(loss)
-            plt.title('model loss')
-            plt.ylabel('loss')
-            plt.xlabel('epoch')
-            plt.legend(['train', 'test'], loc='upper left')
-            #plt.show()
-            plt.tight_layout()
-            plt.savefig(directory + '/Loss' + str(e + 1) + '.pdf',bbox_inches='tight', pad_inches=0)
-            plt.close()
+            #### summarize history for loss
+            ###plt.plot(loss_train)
+            ###plt.plot(loss)
+            ###plt.title('model loss')
+            ###plt.ylabel('loss')
+            ###plt.xlabel('epoch')
+            ###plt.legend(['train', 'test'], loc='upper left')
+            ####plt.show()
+            ###plt.tight_layout()
+            ###plt.savefig(directory + '/Loss' + str(e + 1) +
+            ###'.pdf',bbox_inches='tight', pad_inches=0)
+            ###plt.close()
     
         if(mortality):
             #Plot Brier

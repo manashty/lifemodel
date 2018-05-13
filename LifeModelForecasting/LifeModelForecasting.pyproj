@@ -28,7 +28,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="FallDetection.py" />
-    <Compile Include="helpers.py">
+    <Compile Include="epoch.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="LifeModelForecasting.py" />
@@ -38,6 +38,9 @@
     <Compile Include="ReadBatchZipLM_Omit_Accel.py" />
     <Compile Include="ReadBatchZipLM_Omit_Accel_Readdata.py" />
     <Compile Include="ReadBatchZipLM_Omit_Accel_Readdata_reg.py" />
+    <Compile Include="visualization.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Content Include="ReadBatchZipLM_Omit_Accel_Readdata_reg.ipynb" />

@@ -13,14 +13,22 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'        #https://goo.gl/bZ6eiD
 ###### CONFIG INPUT 
 from config_input import *
 #Sampling rate
-totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (
-40, 20, 0.1, 2, 1)
-#100, 20, 0.1, 2, 1)
-#1000, 100, 0.1, 10, 1)
-#1000, 100, 0.1, 10, 2)
-#1000, 100, 0.2, 50, 2)
-#1000, 10, 0.2, 10, 2)
-#5000, 100, 0.2, 50, 2)
+if(seqToSeq):
+    totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (
+    40, 20, 0.1, 5, 1)
+    #100, 20, 0.1, 2, 1)
+    #1000, 100, 0.1, 10, 1)
+    #1000, 100, 0.1, 10, 2)
+    #1000, 100, 0.2, 50, 2)
+    #1000, 10, 0.2, 10, 2)
+    #5000, 100, 0.2, 50, 2)
+else:
+    if(mortality):        
+        totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (numberOfSamples, 100, 0.2, 50, 1)   
+        #(numberOfSamples, 100, 0.1, 2, 2)
+    else:
+        totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (numberOfSamples, numberOfSamples, 0.2, 50, 2)
+
 
 no_mini_batches = int(totalSamples / minibatchSize)   
 
@@ -65,5 +73,8 @@ logging.info("Filename Template: {0}".format(filename.format(input_file_variable
 logging.info("Filename Input: {0}".format(filename.format(input_file_variable_name)))
 logging.info("Filename Output: {0}".format(filename.format("Output")))
 tensorboard = TensorBoard(log_dir=directory, write_graph=True)
+tensorboard_callbacks=[tensorboard]#,
+                                           #tbCallBack
+                                           #]
 startTime = datetime.datetime.now()
 logging.info('Start time: ' + str(startTime))

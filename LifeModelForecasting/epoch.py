@@ -11,6 +11,7 @@ class Epoch(object):
         self.input_output = dict()
         self.epoch_start_time=datetime.datetime.now()
         self.epoch_end_time=datetime.datetime.now()
+
     def Started(self):
         epoch_start_time = datetime.datetime.now()
         logging.info("\t##########################################################################")
@@ -50,5 +51,4 @@ class Epoch(object):
         #json.dump([epoch.number,epoch.data, epoch.input_output],jsonFile)
         jsonFile.flush()
         jsonFile.close()
-
 
