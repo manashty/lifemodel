@@ -9,6 +9,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"       #'-1' for cpu and [0,1,2,3,] for
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'        #https://goo.gl/bZ6eiD
 
 
+
 ###### CONFIG INPUT 
 from config_input import *
 #Sampling rate
@@ -22,6 +23,10 @@ totalSamples, minibatchSize, testPercentage, epochs, minibatch_epochs = (
 #5000, 100, 0.2, 50, 2)
 
 no_mini_batches = int(totalSamples / minibatchSize)   
+
+# fix random seed for reproducibility
+import numpy
+numpy.random.seed(7)
 
 class Seq2SeqLossFunction(Enum):
     MeanSquaredErrorMSE=0
@@ -61,6 +66,4 @@ logging.info("Filename Input: {0}".format(filename.format(input_file_variable_na
 logging.info("Filename Output: {0}".format(filename.format("Output")))
 tensorboard = TensorBoard(log_dir=directory, write_graph=True)
 startTime = datetime.datetime.now()
-logging.info('Start time: ' + str(startTime))    
-    
-    
+logging.info('Start time: ' + str(startTime))

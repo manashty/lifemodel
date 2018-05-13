@@ -226,7 +226,8 @@ def batch_read_thread(q, size=2):
 def reset():
     global current_total, y_current_total, X, file_in, Y, file_out
     file_in.close()
-    file_out.close()
+    if(seqToSeq):
+        file_out.close()
     if(not mortality):
         file_in=open(curDir+filename.format(input_file_variable_name))
     else:

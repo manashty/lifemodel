@@ -41,18 +41,16 @@ from helpers import *
 
 #endregion
 
-# fix random seed for reproducibility
-numpy.random.seed(7)
-
 sequence_length = K
 n_features = F
 
 model = Sequential()
 
+###################
+### Model Definition
+###################
 if(seqToSeq):
-    ###################
-    ### Model Definition
-    ###################
+    
     if(False):
         model = Seq2Seq(input_shape = (sequence_length, n_features), hidden_dim = 25,
                     output_length = sequence_length, output_dim = n_features,
@@ -94,25 +92,13 @@ if(seqToSeq):
 
     q = queue.Queue(1)
     q2 = queue.Queue(1)
-    epochsData = []
-
-    #tensorflow.get_default_graph().finalize()
-    #to solve this problem: GraphDef cannot be larger than 2GB
-
-    
+    all_epochs_Data = []
         
-
-    #tensorflow.get_default_graph().finalize()
-
     for e in range(epochs):
 
-        epoch_start_time = datetime.datetime.now()
-        logging.info("\t##########################################################################")
-        logging.info("\t############# Epoch {0} started @ {1} ####################".format(e + 1,str(epoch_start_time.strftime(dateformat))))
-        logging.info("\t##########################################################################")
-        logging.info((model.summary()))
-
         epoch = Epoch(e)
+        epoch.Started()
+        logging.info((model.summary()))                
     
         X_test_all = []
         y_test_all = []
@@ -126,34 +112,26 @@ if(seqToSeq):
             readingThread.start()
             readingThread2 = threading.Thread(target=Y_batch_read_thread,args=(q2,minibatchSize))
             readingThread2.start()
-
-
-        if e > 0:#Should not be necessary anymore
+        elif e > 0:#Should not be necessary anymore
             readingThread.join()
             readingThread2.join()
-
     
         batch_data = []
         epoch.input_output['all_batches_training_history_loss'] = []
         epoch.input_output['all_batches_training_history_accuracy'] = []
         epoch.input_output['all_batches_training_history_mse'] = []
-
-        #tbCallBack = TensorBoard(log_dir='./Graph',
-        #                                         histogram_freq=0,
-        #                                         write_graph=True,
-        #                                         write_images=True)
-    
+                    
         for minibatch in range(no_mini_batches):
             #Read samples and prepare data
             minibatch_start_time = datetime.datetime.now()
             logging.info("*********Epoch {2} of {3}, Minibatch {0} of {1} @ {4}********".format(minibatch + 1,no_mini_batches,e + 1,epochs,str(minibatch_start_time.strftime(dateformat))))
             logging.info("Samples:{0}, {3}, MBatch: {1}, Test {2}, Total {4}, MB:{5}".format(totalSamples,minibatchSize,testPercentage,method.name, int(testPercentage * totalSamples),int(testPercentage * minibatchSize)))
       
-            #readingThread.start()
+            #Wait for previous threads to join
             readingThread.join()
             readingThread2.join()
 
-            #print("Finished!")
+            
             X2 = q.get()
             Y2 = q2.get()
             X = X2
@@ -172,13 +150,7 @@ if(seqToSeq):
                 #y_te = list(numpy.random.randint(0,len(Y),size=int((len(Y) *
                 #testPercentage))))#Rand 10 percent for testing
                 #y_tr = set(list(range(0,len(Y)))) - set(y_te)#The remaining 90
-                #percent for training
-                #print(tr)
-                #print(te)
-                #print(y_tr)
-                #print(y_te)
-                #print(len(tr))
-                #print(len(y_tr))
+              
         
             offset = minibatchSize * minibatch
 
@@ -195,25 +167,16 @@ if(seqToSeq):
             if(minibatch == (no_mini_batches - 1)):#If last minibatch, reset to read the first batch for next epoch
                 reset()
 
+            ####READ X
             readingThread = threading.Thread(target=batch_read_thread,args=(q,minibatchSize))
             readingThread.start()
-            
+            ###READ Y
             readingThread2 = threading.Thread(target=Y_batch_read_thread,args=(q2,minibatchSize))
             readingThread2.start()
-
-            #print("Xtrain {}".format(X_train.shape))
-            #print("Ytrain {}".format(y_train.shape))
-            #print("Xtest {}".format(numpy.array(X_test).shape))
-            #print("Ytest {}".format(numpy.array(y_test).shape))
-
-            #tbCallBack = TensorBoard(log_dir='./Graph',
-            #                                     histogram_freq=0,
-            #                                    write_graph=True,
-            #                                     write_images=True)
+                       
 
             history = model.fit(X_train, 
-                                y_train,
-                                #X_train,
+                                y_train,                                
                                 epochs=minibatch_epochs, batch_size=1
                                 #,callbacks=[tensorboard,
                                 #           tbCallBack
@@ -237,35 +200,22 @@ if(seqToSeq):
         
         # Final evaluation of the model
         #####################################
-        ###### EPOCH TRAINING FINISHED
+        ###### 1 EPOCH TRAINING FINISHED
         #####################################
         result = model.predict_on_batch(numpy.array(X_test_all))
         train_result = model.predict_on_batch(numpy.array(X_train))
 
         scores = model.evaluate(numpy.array(X_test_all), numpy.array(X_test_all), verbose=0)
+        epoch.input_output["Test Score Seq2Seq"]=str(scores)
         logging.info("***Test Score Seq2Seq***")
         logging.info(str(scores))
         logging.info("***End Test Score***")
 
         
-
-        epochsData.append(epoch)
-   
-        #logging.info(result_both)
-        #logging.info("Predictions on all:")
-    
-        logging.info("")
-        logging.info("*****************************************")
-        logging.info("***Epoch Summary***")
-        logging.info("Parameters: Samples:{0}, Minibatch Size: {1}, Test ratio: {2} ".format(totalSamples,minibatchSize,testPercentage))    
-        logging.info(str(epoch.data))
-   
-
-        logging.info("***END OF EPOCH {0} of {1}** @ {2} in {3}*".format(e + 1, epochs,datetime.datetime.now().strftime(dateformat),str((datetime.datetime.now() - epoch_start_time))))
-        logging.info("*****************************************")
-        logging.info("")
-
-        epoch.SaveToFile(directory, model)        
+            
+        epoch.Finished()        
+        epoch.SaveToFile(directory, model)           
+        all_epochs_Data.append(epoch)        
         #####################################
         ###### EPOCH LOOP END
         #####################################
@@ -328,16 +278,11 @@ else:
     metricsReports = []
     q = queue.Queue(1)
     #it was 1, for seq2seq has changed to 2
-    epochsData = []
+    all_epochs_Data = []
 
     for e in range(epochs):
-
-        epoch_start_time = datetime.datetime.now()
-        logging.info("\t##########################################################################")
-        logging.info("\t############# Epoch {0} started @ {1} ####################".format(e + 1,str(epoch_start_time.strftime(dateformat))))
-        logging.info("\t##########################################################################")
-    
         epoch = Epoch(e)
+        epoch.Started()
     
         X_test_all = []
         y_test_all = []
@@ -499,7 +444,7 @@ else:
                     logging.info("Tolerance Error for train: %.3f%%" % (epoch.data['Tolerance_Error'] * 100))
 
         
-        epochsData.append(epoch)
+        all_epochs_Data.append(epoch)
    
         #logging.info(result_both)
         #logging.info("Predictions on all:")
@@ -537,7 +482,7 @@ else:
                 logging.info("Epoch {0} accuracy:{1}, loss:{2}".format(ep + 1,accuracy[ep][0],accuracy[ep][1]))
 
             #print("Epoch {0} metrics".format(ep+1))
-            logging.info(epochsData[ep].data)
+            logging.info(all_epochs_Data[ep].data)
 
             #print([str(met) for met in metricsAll[e]])
         logging.info("***Results***")
@@ -560,14 +505,14 @@ else:
         logging.info("")
     
         if(problem_type != regressionP):
-            acc_train = [epoch_iter.input_output['all_batches_training_history_accuracy'][-1][-1] for epoch_iter in epochsData]
-            acc = [epoch_iter.data['accuracy'] for epoch_iter in epochsData]
+            acc_train = [epoch_iter.input_output['all_batches_training_history_accuracy'][-1][-1] for epoch_iter in all_epochs_Data]
+            acc = [epoch_iter.data['accuracy'] for epoch_iter in all_epochs_Data]
         else:
-            mse_train = [epoch_iter.input_output['all_batches_training_history_mse'][-1][-1] for epoch_iter in epochsData]
-            mse = [epoch_iter.data['mse'] for epoch_iter in epochsData]
+            mse_train = [epoch_iter.input_output['all_batches_training_history_mse'][-1][-1] for epoch_iter in all_epochs_Data]
+            mse = [epoch_iter.data['mse'] for epoch_iter in all_epochs_Data]
 
-        loss_train = [epoch_iter.input_output['all_batches_training_history_loss'][-1][-1] for epoch_iter in epochsData]
-        loss = [epoch_iter.data['loss'] for epoch_iter in epochsData]
+        loss_train = [epoch_iter.input_output['all_batches_training_history_loss'][-1][-1] for epoch_iter in all_epochs_Data]
+        loss = [epoch_iter.data['loss'] for epoch_iter in all_epochs_Data]
 
 
         #ta einja mse va acc check shodan
@@ -651,7 +596,7 @@ else:
                 epoch.input_output['mean_predicted_value'] = mean_predicted_value 
 
 
-                for x in epochsData:
+                for x in all_epochs_Data:
                     ax1.plot(x.input_output['mean_predicted_value'], x.input_output['fraction_of_positives'], "s-",
                             label="%s (%1.3f)" % ('Epoch{0}'.format(str(x.number + 1)), x.data['brier']))
 
