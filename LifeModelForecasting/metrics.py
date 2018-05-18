@@ -2,7 +2,7 @@ import numpy
 import keras.backend as Kernel
 import tensorflow
 import math
-from config import toleranceIndex, tolerance
+from config import toleranceIndex, tolerance, K, F
 
 def accForReg(y_test_all, result):
     # y_test_all: True values
@@ -77,9 +77,11 @@ def Mortality_Seq2seq_Metric(y_true, y_pred):
     return (math.sqrt(outersum))#/Kernel.pow(2, tolerance))
 
 
+
 #Trying to make it work with Keras kernel functions only
-m = [2 ** i for i in range(32)]
-m2 = [m for i in range(8371)]
+m = [(2 ** i)/((2**toleranceIndex)*F*K) for i in range(K)]
+#m=m/((2**toleranceIndex)*F*K)
+m2 = [m for i in range(F)]
 m2tran = numpy.transpose(numpy.array(m2))
 
 #Mean Tolerance Error
@@ -107,10 +109,10 @@ def MTE(y_true, y_pred):
     step3 = step2 * m3#Kernel.variable(m)
     #step3 = step2
     step4 = Kernel.pow(step3,2)
-    step5 = Kernel.sum(step4)
+    step5 = Kernel.mean(step4)
     step6 = Kernel.sqrt(step5)
     
-    return step6/ 1000000
+    return step6
         
     ####countOfAllSamples = Kernel.int_shape(y_true)[0]
     ####countOfAllSamplesN = Kernel.int_shape(y_true)[0]

@@ -45,7 +45,7 @@ lossFunction=Seq2SeqLossFunction.MeanToleranceErrorMTE
 #Create the results directory
 import datetime
 dateformatFile = '%Y-%m-%d  %H-%M-%S'
-directory = "Results " + str(datetime.datetime.now().strftime(dateformatFile)) + ' Samples-{0}_MB-{1}_TestPerc{2}_{3}'.format(totalSamples,minibatchSize, int(testPercentage * 100),method.name)
+directory = "Results " + str(datetime.datetime.now().strftime(dateformatFile)) + ' Samples-{0}_MB-{1}_TestPerc{2}_{3}_Loss_{4}'.format(totalSamples,minibatchSize, int(testPercentage * 100),method.name, lossFunction.name[-3:])
 print(directory)
 
 

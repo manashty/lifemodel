@@ -100,7 +100,7 @@ if(seqToSeq):
 
         epoch = Epoch(e)
         epoch.Started()
-        logging.info((model.summary()))                
+        #logging.info((model.summary()))                
     
         X_test_all = []
         y_test_all = []
@@ -231,7 +231,7 @@ if(seqToSeq):
               
         epoch.input_output["epoch_test_seq2seq"] = str(scores)
         #logging.info("***Test Score Seq2Seq***")
-        logging.info("***Scores: Test Loss={0}, MSE={0}, Test MTE={1}***".format(scores_test_all[0],scores_test_all[1],scores_test_all[2]))
+        logging.info("***Scores: Test Loss={0}, MSE={1}, Test MTE={1}***".format(scores_test_all[0],scores_test_all[1],scores_test_all[2]))
         logging.info(str(scores_test_all))
         logging.info("***End Test Score***")        
             
