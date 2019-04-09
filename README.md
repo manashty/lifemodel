@@ -4,4 +4,4 @@ To read the MIMIC III data and convert it to the Life Model version, please down
 There is also an old implementation of LM in Python that I placed in here (LifeModel.py)
 
 Here's an screenshot of the MIMIC III Convertor:
-![2019-04-09.png]
+![](2019-04-09.png)
